@@ -1,20 +1,9 @@
-from dataclasses import dataclass
-
 import scrapy
 from scrapy import Selector
 from scrapy.http import Response
 from enum import Enum
 
-
-@dataclass
-class Book:
-    title: str
-    price: float
-    rating: int
-    amount_in_stock: str
-    category: str
-    description: str
-    upc: str
+from books.items import BooksItem
 
 
 class RatingEnum(Enum):
@@ -38,27 +27,21 @@ class BooksListSpider(scrapy.Spider):
     start_urls = ["https://books.toscrape.com/"]
 
     def parse_book_with_details(self, response: Response) -> None:
-        book_data = response.meta["book_data"]
-        title = book_data.css("a::attr(title)").get()
-        price = book_data.css(".price_color::text").get().replace("£", "")
-        rating_classes = book_data.css(".star-rating::attr(class)").get()
-        rating = get_rating_value_from_class_names(rating_classes)
-        category = response.css(".breadcrumb li:nth-child(3) > a::text").get()
-        description = response.css("#product_description + p::text"
-                                   ).get() or "No description available"
-        upc = response.css("table tr:first-child td::text").get()
-        amount_in_stock = response.css(".instock.availability::text"
-                                       ).re_first(r"\((\d+) available\)")
+        book = BooksItem()
+        book["title"] = response.meta["book_data"].css("a::attr(title)").get()
+        book["price"] = float(response.meta["book_data"].css(
+            ".price_color::text").get().replace("£", ""))
+        book["rating"] = get_rating_value_from_class_names(
+            response.meta["book_data"].css(".star-rating::attr(class)").get())
+        book["category"] = response.css(
+            ".breadcrumb li:nth-child(3) > a::text").get()
+        book["description"] = response.css(
+            "#product_description + p::text").get() or "No description"
+        book["upc"] = response.css("table tr:first-child td::text").get()
+        book["amount_in_stock"] = response.css(
+            ".instock.availability::text").re_first(r"\((\d+) available\)")
 
-        yield {
-            'title': title,
-            'price': float(price),
-            'rating': rating,
-            'amount_in_stock': amount_in_stock,
-            'category': category,
-            'description': description,
-            'upc': upc,
-        }
+        yield book
 
     def parse_book(self, book: Selector, response: Response) -> None:
         details_link = book.css("h3 > a::attr(href)").get()
